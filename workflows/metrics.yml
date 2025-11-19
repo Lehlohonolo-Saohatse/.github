@@ -1,0 +1,66 @@
+name: Generate GitHub Tech Metrics
+
+# Trigger: daily + manual dispatch. Change cron as needed.
+on:
+  schedule:
+    - cron: '0 2 * * *'    # runs daily at 02:00 UTC (change to your preferred time)
+  workflow_dispatch:       # allows manual run from Actions UI
+
+jobs:
+  build-and-commit:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write     # allow committing files (GITHUB_TOKEN uses this)
+      id-token: write
+      actions: read
+      checks: write
+
+    steps:
+    - name: Checkout repo
+      uses: actions/checkout@v4
+      with:
+        persist-credentials: true  # uses GITHUB_TOKEN to allow push
+
+    - name: Set up Node (required by some metric tools)
+      uses: actions/setup-node@v4
+      with:
+        node-version: '18'
+
+    - name: Run GitHub Metrics (lowlighter/metrics)
+      uses: lowlighter/metrics@latest
+      id: metrics
+      with:
+        # If you're using a PAT, replace token with ${{ secrets.METRICS_PAT }}
+        token: ${{ secrets.METRICS_PAT }}  # or use ${{ github.token }} for default GITHUB_TOKEN
+        user: Lehlohonolo-Saohatse
+        template: classic
+        base: header,repositories,activity,community
+        plugin_languages: yes
+        plugin_languages_details: percentage
+        plugin_languages_limit: 12
+        plugin_topics: yes
+        plugin_topics_mode: icons
+        plugin_topics_limit: 24
+        plugin_ecosystems: yes
+        repositories: 200
+        # output file path (relative to repo root)
+        output: ./metrics.svg
+
+    - name: Show generated file info
+      run: |
+        echo "Listing generated metrics.svg:"
+        ls -la metrics.svg || true
+        file metrics.svg || true
+
+    - name: Commit metrics.svg if changed
+      run: |
+        git config user.name "github-actions[bot]"
+        git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+        # Only commit if file changed
+        if git status --porcelain | grep -q 'metrics.svg'; then
+          git add metrics.svg
+          git commit -m "chore(metrics): update metrics.svg (auto)"
+          git push origin HEAD:${{ github.ref_name }}
+        else
+          echo "No changes to metrics.svg — skipping commit."
+        fi
