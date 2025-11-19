@@ -1,27 +1,30 @@
 name: Generate GitHub Tech Metrics
 
-# Trigger: daily + manual dispatch
 on:
   schedule:
-    - cron: '0 2 * * *'    # runs daily at 02:00 UTC
-  workflow_dispatch:       # allows manual run from Actions UI
+    - cron: '0 2 * * *'
+  workflow_dispatch:
 
 jobs:
   build-and-commit:
     runs-on: ubuntu-latest
     permissions:
-      contents: write     # allow committing files
+      contents: write
 
     steps:
     - name: Checkout repo
       uses: actions/checkout@v4
       with:
-        persist-credentials: true  # uses GITHUB_TOKEN to allow push
+        persist-credentials: true
 
-    - name: Set up Node
-      uses: actions/setup-node@v4
-      with:
-        node-version: '18'
+    - name: Debug current directory
+      run: |
+        echo "Current directory:"
+        pwd
+        echo "Files in current directory:"
+        ls -la
+        echo "Git status:"
+        git status
 
     - name: Generate GitHub Metrics
       uses: lowlighter/metrics@latest
@@ -29,21 +32,32 @@ jobs:
         token: ${{ secrets.GITHUB_TOKEN }}
         user: Lehlohonolo-Saohatse
         template: classic
-        base: header,repositories,activity,community
+        base: repositories,activity
         plugin_languages: yes
         plugin_languages_details: percentage
-        plugin_languages_limit: 8
-        plugin_topics: yes
-        plugin_topics_mode: icons
-        plugin_topics_limit: 15
-        plugin_ecosystems: yes
-        repositories: 100
+        plugin_languages_limit: 6
+        repositories: 50
         output: metrics.svg
+
+    - name: Check if metrics.svg was created
+      run: |
+        echo "Checking for metrics.svg:"
+        ls -la metrics.svg || echo "metrics.svg not found!"
+        echo "Current files:"
+        ls -la
 
     - name: Commit metrics.svg if changed
       run: |
         git config user.name "github-actions[bot]"
         git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-        git add metrics.svg
-        git diff --staged --quiet || git commit -m "chore: update metrics.svg"
-        git push
+        
+        # Check if file exists and has content
+        if [ -f "metrics.svg" ] && [ -s "metrics.svg" ]; then
+          echo "metrics.svg exists and has content - committing..."
+          git add metrics.svg
+          git commit -m "chore: update metrics.svg" || echo "No changes to commit"
+          git push
+        else
+          echo "metrics.svg not found or empty - skipping commit"
+          exit 1
+        fi
